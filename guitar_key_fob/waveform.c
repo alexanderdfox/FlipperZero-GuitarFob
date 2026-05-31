@@ -164,14 +164,17 @@ size_t guitar_build_pluck_ask(
 size_t guitar_build_rolling_preamble(
     LevelDuration* out,
     size_t out_max,
-    uint32_t* rolling_code_io) {
+    uint32_t* rolling_code_io,
+    GuitarAction action) {
     furi_check(out);
     furi_check(rolling_code_io);
 
     const uint32_t te_short = 350;
     const uint32_t te_long = 1050;
     const uint32_t device_id = 0x617469UL; /* "ati" fingerprint mixed into code */
-    uint32_t code = (*rolling_code_io)++;
+    /* bits 15-14: action, 13-12: protocol v2 (0b10), 11-0: rolling counter */
+    const uint32_t counter = (*rolling_code_io)++ & 0x0FFF;
+    uint32_t code = counter | (0x2UL << 12) | (((uint32_t)action & 0x3) << 14);
     code ^= (device_id << 8) ^ 0xA5A5u;
 
     size_t count = 0;

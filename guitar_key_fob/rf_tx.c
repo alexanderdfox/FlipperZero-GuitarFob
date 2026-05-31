@@ -38,7 +38,8 @@ LevelDuration guitar_rf_encoder_yield(void* context) {
 bool guitar_rf_encoder_build_pluck(
     GuitarRfEncoder* encoder,
     const GuitarPluckParams* params,
-    GuitarSettings* settings) {
+    GuitarSettings* settings,
+    GuitarAction action) {
     furi_check(encoder);
     furi_check(params);
     furi_check(settings);
@@ -47,7 +48,7 @@ bool guitar_rf_encoder_build_pluck(
 
     if(offset == 0) {
         offset = guitar_build_rolling_preamble(
-            encoder->buffer, GUITAR_MAX_RAW_DURATIONS, &settings->rolling_code);
+            encoder->buffer, GUITAR_MAX_RAW_DURATIONS, &settings->rolling_code, action);
     } else {
         /* Brief silence between riff notes */
         if(offset + 1 < GUITAR_MAX_RAW_DURATIONS) {

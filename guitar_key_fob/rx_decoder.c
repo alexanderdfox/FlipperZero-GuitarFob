@@ -8,6 +8,11 @@
 
 #define TAG "GuitarRxDec"
 
+#define GUITAR_RX_DEVICE_ID 0x617469UL
+#define GUITAR_RX_CODE_XOR ((uint16_t)((GUITAR_RX_DEVICE_ID << 8) ^ 0xA5A5u))
+#define GUITAR_RX_CODE_VERSION 0x2u
+#define GUITAR_RX_MATCH_THRESHOLD 0.45f
+
 static LevelDuration g_capture[GUITAR_RX_MAX_CAPTURE];
 static size_t g_capture_count = 0;
 static uint32_t g_silence_us = 0;
@@ -226,6 +231,25 @@ static float guitar_rx_estimate_freq(
     return freq;
 }
 
+static uint16_t guitar_rx_unmask_code(uint16_t encoded) {
+    return encoded ^ GUITAR_RX_CODE_XOR;
+}
+
+static uint16_t guitar_rx_decode_counter(uint16_t encoded) {
+    return guitar_rx_unmask_code(encoded) & 0x0FFF;
+}
+
+GuitarRxAction guitar_rx_decode_action(uint16_t encoded) {
+    const uint16_t unmasked = guitar_rx_unmask_code(encoded);
+    if(((unmasked >> 12) & 0x3) != GUITAR_RX_CODE_VERSION) {
+        return GuitarRxActionCount;
+    }
+
+    const uint8_t action = (unmasked >> 14) & 0x3;
+    if(action >= GuitarRxActionCount) return GuitarRxActionCount;
+    return (GuitarRxAction)action;
+}
+
 static bool guitar_rx_decode_capture(const LevelDuration* data, size_t count, GuitarRxFrame* frame) {
     furi_check(data);
     furi_check(frame);
@@ -235,6 +259,11 @@ static bool guitar_rx_decode_capture(const LevelDuration* data, size_t count, Gu
     if(!guitar_rx_decode_preamble(data, count, &frame->rolling_code)) {
         return false;
     }
+
+    const uint16_t encoded = frame->rolling_code;
+    frame->rolling_code = guitar_rx_decode_counter(encoded);
+    frame->action = guitar_rx_decode_action(encoded);
+    frame->action_valid = frame->action < GuitarRxActionCount;
 
     size_t idx = 0;
     uint8_t sync_pairs = 0;
@@ -330,7 +359,7 @@ GuitarRxAction guitar_rx_match_action(const GuitarRxRiff* received, const Guitar
     furi_check(received);
     furi_check(settings);
 
-    float best = 0.5f;
+    float best = GUITAR_RX_MATCH_THRESHOLD;
     GuitarRxAction best_action = GuitarRxActionCount;
 
     for(GuitarRxAction action = 0; action < GuitarRxActionCount; action++) {
@@ -343,6 +372,49 @@ GuitarRxAction guitar_rx_match_action(const GuitarRxRiff* received, const Guitar
     }
 
     return best_action;
+}
+
+GuitarRxAction guitar_rx_guess_from_notes(const GuitarRxRiff* received) {
+    furi_check(received);
+
+    if(received->count == 0) return GuitarRxActionCount;
+    if(received->count >= 3) return GuitarRxActionAlarm;
+
+    const float hz = received->notes[0].hz;
+    const float bend = received->notes[0].bend_hz;
+    if(bend >= 3.0f) return GuitarRxActionTrunk;
+    if(hz < 220.0f) return GuitarRxActionUnlock;
+    if(hz < 290.0f) return GuitarRxActionLock;
+    return GuitarRxActionTrunk;
+}
+
+GuitarRxAction guitar_rx_identify_button(
+    const GuitarRxFrame* frame,
+    const GuitarRxSettings* settings) {
+    furi_check(frame);
+    furi_check(settings);
+
+    if(frame->action_valid) return frame->action;
+
+    const GuitarRxAction from_profile = guitar_rx_match_action(&frame->riff, settings);
+    if(from_profile < GuitarRxActionCount) return from_profile;
+
+    return guitar_rx_guess_from_notes(&frame->riff);
+}
+
+const char* guitar_rx_action_button(GuitarRxAction action) {
+    switch(action) {
+    case GuitarRxActionUnlock:
+        return "Unlock (G3)";
+    case GuitarRxActionLock:
+        return "Lock (B3)";
+    case GuitarRxActionTrunk:
+        return "Trunk (E4)";
+    case GuitarRxActionAlarm:
+        return "Alarm Riff";
+    default:
+        return "Unknown";
+    }
 }
 
 const char* guitar_rx_action_name(GuitarRxAction action) {

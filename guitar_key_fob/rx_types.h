@@ -38,6 +38,8 @@ typedef struct {
 typedef struct {
     uint16_t rolling_code;
     GuitarRxRiff riff;
+    GuitarRxAction action;
+    bool action_valid;
     bool valid;
 } GuitarRxFrame;
 

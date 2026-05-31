@@ -24,8 +24,16 @@ float guitar_rx_riff_match_score(const GuitarRxRiff* received, const char* profi
 /** Pick best matching action from synced profiles, or GuitarRxActionCount if none. */
 GuitarRxAction guitar_rx_match_action(const GuitarRxRiff* received, const GuitarRxSettings* settings);
 
+/** Identify button: preamble (v2 TX), profile match, then note guess. */
+GuitarRxAction guitar_rx_identify_button(
+    const GuitarRxFrame* frame,
+    const GuitarRxSettings* settings);
+
 /** Action display name. */
 const char* guitar_rx_action_name(GuitarRxAction action);
+
+/** Action with note label, e.g. "Unlock (G3)". */
+const char* guitar_rx_action_button(GuitarRxAction action);
 
 /** Get profile string for action. */
 const char* guitar_rx_profile_for_action(const GuitarRxSettings* settings, GuitarRxAction action);

@@ -27,7 +27,8 @@ LevelDuration guitar_rf_encoder_yield(void* context);
 bool guitar_rf_encoder_build_pluck(
     GuitarRfEncoder* encoder,
     const GuitarPluckParams* params,
-    GuitarSettings* settings);
+    GuitarSettings* settings,
+    GuitarAction action);
 
 /**
  * Transmit the prepared buffer at the configured carrier frequency.

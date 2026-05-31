@@ -32,4 +32,5 @@ size_t guitar_build_pluck_ask(
 size_t guitar_build_rolling_preamble(
     LevelDuration* out,
     size_t out_max,
-    uint32_t* rolling_code_io);
+    uint32_t* rolling_code_io,
+    GuitarAction action);

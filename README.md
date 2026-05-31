@@ -17,45 +17,34 @@ Each action uses its own **custom riff** — a comma-separated list of note freq
 
 Additional behavior:
 
-- **Rolling code preamble** — 16-bit incrementing ID XOR’d with a device fingerprint, sent before each pluck
-- **Speaker feedback** — audible pluck on the Flipper speaker during TX (toggle in Settings)
-- **Persistent settings** — saved to `/ext/apps_data/guitar_key_fob/settings.txt`
+- **Rolling code preamble** — encodes button ID + incrementing counter before each pluck
+- **Speaker feedback** — audible pluck on the Flipper speaker during TX/RX (toggle in Settings)
+- **Unified app** — one FAP with **Transmit** and **Receive** modes from the main menu
+- **Persistent settings** — TX: `/ext/apps_data/guitar_key_fob/settings.txt`, RX: `/ext/apps_data/guitar_riff_rx/settings.txt`
 
 ## Project structure
 
 ```
-guitar_key_fob/          # Transmitter — sends guitar-pluck riffs
-guitar_riff_rx/          # Receiver — decode, match, and sync riffs
+guitar_key_fob/          # Unified TX + RX FAP
 tools/
   guitar_key_fob.py      # Desktop waveform simulator
 ```
 
-### Transmitter (`guitar_key_fob/`)
+### App modules (`guitar_key_fob/`)
 
 ```
-  application.fam
-  guitar_key_fob.c
-  waveform.c/h
-  rf_tx.c/h
-  riff.c/h
-  settings.c/h
-  speaker_pluck.c/h
+  guitar_key_fob.c       # Main menu + entry point
+  guitar_tx.c            # Transmit mode
+  guitar_rx.c            # Receive mode
+  waveform.c/h, rf_tx.c/h, riff.c/h, settings.c/h   # TX engine
+  rx_decoder.c/h, rx_settings.c/h, rx_ui.c/h       # RX engine
 ```
 
-### Receiver (`guitar_riff_rx/`)
-
-```
-  application.fam
-  guitar_riff_rx.c     # Listen UI, sync profiles
-  rx_decoder.c/h       # Preamble + pluck frequency decoder
-  rx_settings.c/h      # Synced riff profiles per action
-```
-
-**Receiver features:**
+**Receive mode features:**
 
 - **Listen** — async Sub-GHz RX on 315 / 433.92 MHz
-- **Decode** — rolling code + note sequence (e.g. `196,247,330+8`)
-- **Match** — compare against synced profiles (Unlock / Lock / Trunk / Alarm)
+- **Decode** — rolling code + note sequence + button ID from preamble
+- **Identify** — shows which button was pressed (Unlock / Lock / Trunk / Alarm)
 - **Sync Riff** — save last received riff to any profile slot
 - **Speaker** — replay received riff on the Flipper speaker
 
@@ -68,11 +57,13 @@ tools/
 ## Build & install
 
 ```bash
-cd guitar_key_fob && ufbt    # → dist/guitar_key_fob.fap
-cd guitar_riff_rx && ufbt    # → dist/guitar_riff_rx.fap
+make build      # → guitar_key_fob/dist/guitar_key_fob.fap
+make install    # build + upload over USB
 ```
 
-Deploy with `ufbt launch` in each app directory, or copy both `.fap` files to `apps/Sub-GHz/` on each Flipper.
+Or manually: `cd guitar_key_fob && ufbt && ufbt launch`
+
+Copy `guitar_key_fob.fap` to `apps/Sub-GHz/` on the Flipper SD card.
 
 If `ufbt` is not found after `pip install ufbt`, reload your shell or add Python user scripts to PATH:
 
@@ -82,19 +73,22 @@ export PATH="$HOME/Library/Python/3.9/bin:$PATH"
 
 ## Two-Flipper demo
 
-1. **Flipper A** — Guitar Key Fob → transmit any button (match carrier in Settings)
-2. **Flipper B** — Guitar Riff RX → **Listen**
-3. RX shows decoded riff, rolling code, and best profile match
+1. **Flipper A** — Guitar Key Fob → **Transmit** → any button (set carrier in Settings)
+2. **Flipper B** — Guitar Key Fob → **Receive** → **Listen**
+3. RX shows which button was pressed, decoded riff, and rolling code
 4. **Sync Riff** → pick Unlock/Lock/Trunk/Alarm to store the pattern for future matching
 
-## Usage on device (transmitter)
+## Usage on device
 
-1. Open **Apps → Sub-GHz → Guitar Key Fob**
-2. Select **Unlock**, **Lock**, **Trunk**, or **Alarm Riff**
-3. Flipper transmits the pluck and shows status (frequency + rolling code)
-4. **Settings** → adjust carrier band, envelope, harmonics, vibrato, speaker
-5. **Settings → Edit Riffs** → customize the note sequence for Unlock, Lock, Trunk, and Alarm
-6. Press **Back** to save settings and exit
+Open **Apps → Sub-GHz → Guitar Key Fob** and pick **Transmit** or **Receive**.
+
+### Transmit mode
+
+1. Select **Unlock**, **Lock**, **Trunk**, or **Alarm Riff**
+2. Flipper transmits the pluck and shows status (frequency + rolling code)
+3. **Settings** → adjust carrier band, envelope, harmonics, vibrato, speaker
+4. **Settings → Edit Riffs** → customize the note sequence for Unlock, Lock, Trunk, and Alarm
+5. Press **Back** to return to the main menu
 
 ### Custom riff format
 
@@ -112,14 +106,13 @@ export PATH="$HOME/Library/Python/3.9/bin:$PATH"
 
 Harmonics and envelope settings still apply to every note in a riff.
 
-## Usage on device (receiver)
+### Receive mode
 
-1. Open **Apps → Sub-GHz → Guitar Riff RX**
-2. **Settings** → set the same carrier as the transmitter (315 or 433.92 MHz)
-3. **Listen** — hold Flipper B near Flipper A and transmit
-4. View decoded riff string and profile match on screen
-5. **Sync Riff** → assign the last received riff to Unlock / Lock / Trunk / Alarm
-6. Synced profiles are saved to `/ext/apps_data/guitar_riff_rx/settings.txt`
+1. **Settings** → set the same carrier as the transmitter (315 or 433.92 MHz)
+2. **Listen** — hold near transmitting Flipper
+3. View identified button, decoded riff, and rolling code
+4. **Sync Riff** → assign the last received riff to Unlock / Lock / Trunk / Alarm
+5. Synced profiles saved to `/ext/apps_data/guitar_riff_rx/settings.txt`
 
 ## Desktop simulator (optional)
 
@@ -157,7 +150,7 @@ MicroPython ports for Flipper exist but do not expose reliable, low-latency Sub-
 | `TX failed` | Enable **Sub-GHz debug / region** matching your band; try 433.92 MHz in EU |
 | No speaker sound | Settings → Speaker → **On** |
 | Build errors | Update uFBT SDK: `ufbt update` |
-| App missing on Flipper | Ensure `.fap` is in `apps/Sub-GHz/` and firmware is up to date |
+| App missing on Flipper | Ensure `guitar_key_fob.fap` is in `apps/Sub-GHz/` and firmware is up to date |
 
 ## License
 

@@ -104,3 +104,9 @@ void guitar_rx_settings_save(const GuitarRxSettings* settings) {
     flipper_format_free(file);
     furi_record_close(RECORD_STORAGE);
 }
+
+void guitar_rx_settings_reset(GuitarRxSettings* settings) {
+    furi_check(settings);
+    guitar_rx_settings_defaults(settings);
+    guitar_rx_settings_save(settings);
+}
