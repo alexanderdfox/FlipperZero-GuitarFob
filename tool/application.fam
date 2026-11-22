@@ -1,0 +1,10 @@
+App(
+    appid="signal_sim",
+    name="Signal Sim",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="signal_sim_app",
+    stack_size=4 * 1024,
+    fap_category="Tools",
+    fap_version=(0, 1),
+    fap_description="Configurable pipe & tree signal simulator",
+)
